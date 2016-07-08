@@ -1,0 +1,132 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "version": "1.0.0",
+        "title": "ERP - Microsiga Protheus 11 | API RESTFUL Hub Prepaid",
+        "description": "#### ERP.\nERP.\n"
+    },
+    "schemes": [
+        "http"
+    ],
+    "host": "tst-c4.valepresente.net.br:8090",
+    "basePath": "/rest",
+    "tags": [
+        {
+            "name": "Clientes",
+            "description": "Cliente"
+        }
+    ],
+    "paths": {
+        "/clientes/{id}": {
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "description": "ID",
+                    "type": "string",
+                    "required": true
+                }
+            ],
+            "get": {
+                "tags": [
+                    "Clientes"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Echo test-path"
+                    }
+                }
+            }
+        },
+        "/clientes": {
+            "post": {
+                "tags": [
+                    "Clientes"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/Link"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "A1_PESSOA",
+                        "in": "query",
+                        "description": "Tipo de Pessoa",
+                        "type": "string"
+                    },
+                    {
+                        "name": "A1_CGC",
+                        "in": "query",
+                        "description": "CNPJ ou CPF",
+                        "type": "string"
+                    },
+                    {
+                        "name": "A1_NOME",
+                        "in": "query",
+                        "description": "Nome (Razao Social para PJ)",
+                        "type": "string"
+                    },
+                    {
+                        "name": "A1_NREDUZ",
+                        "in": "query",
+                        "description": "Apelido (Nome Fantasia para PJ)",
+                        "type": "string"
+                    },
+                    {
+                        "name": "A1_CEP",
+                        "in": "query",
+                        "description": "Cep",
+                        "type": "string"
+                    },
+                    {
+                        "name": "A1_EMAIL",
+                        "in": "query",
+                        "description": "e-Mail",
+                        "type": "string"
+                    },
+                    {
+                        "name": "A1_NATUREZ",
+                        "in": "query",
+                        "description": "Natureza financeira",
+                        "type": "string"
+                    }
+                ]
+            }
+        }
+    },
+    "definitions": {
+        "Link": {
+            "type": "object",
+            "properties": {
+                "A1_PESSOA": {
+                    "type": "string"
+                },
+                "A1_CGC": {
+                    "type": "string"
+                },
+                "A1_NOME": {
+                    "type": "string"
+                },
+                "A1_NREDUZ": {
+                    "type": "string"
+                },
+                "A1_CEP": {
+                    "type": "string"
+                },
+                "A1_EMAIL": {
+                    "type": "string"
+                },
+                "A1_NATUREZ": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}
