@@ -1,0 +1,596 @@
+#INCLUDE "TOTVS.CH"
+#INCLUDE "RESTFUL.CH"
+
+#DEFINE cCmpObg  "|C5_CONDPAG|C5_TPVENDA|C5_MENNOTA|C5_TPVENDA|C5_SERWEB"+;//|C5_MENPAD|C5_CLIENTE|C5_LOJACLI|C5_TPECOM|C5_SERWEB|C5_GRPWEB|C5_CNLWEB|C5_EMPFAT|C5_FILFATC5_MAILWF|C5_DATA1
+					"|C6_PRODUTO|C6_QTDVEN|C6_PRCVEN|C6_DESCRI|"
+#DEFINE aHeadObg {"C5_CONDPAG","C5_TPVENDA","C5_MENNOTA","C5_TPVENDA","C5_SERWEB"}
+#DEFINE aContObg {"C6_PRODUTO","C6_QTDVEN","C6_PRCVEN"}
+ 
+WSRESTFUL T_MATA410 DESCRIPTION "Serviço para inclusao, alteracao e exclusao de pedido de venda."
+ 
+WSDATA count      AS INTEGER
+WSDATA startIndex AS INTEGER
+ 
+WSMETHOD GET DESCRIPTION "Consulta se ja foi realizado a integração do pedido." WSSYNTAX "/T_MATA410 || /T_MATA410/{id}"
+WSMETHOD POST DESCRIPTION "Atualiza pedido ja integrados." WSSYNTAX "/T_MATA410/{id}"
+WSMETHOD PUT DESCRIPTION "Insere pedido no ambiente." WSSYNTAX "/T_MATA410/{id}"
+WSMETHOD DELETE DESCRIPTION "Exclui pedido ja integrado." WSSYNTAX "/T_MATA410/{id}"
+ 
+END WSRESTFUL
+ 
+// O metodo GET nao precisa necessariamente receber parametros de querystring, por exemplo:
+// WSMETHOD GET WSSERVICE T_MATA410 
+
+WSMETHOD GET WSRECEIVE startIndex, count WSSERVICE T_MATA410
+Local i
+Local cRet:=""
+Local aCampos := {}
+//Local cCmpObg := "|C5_CLIENTE|C5_LOJACLI|C5_CONDPAG|C5_MENPAD|C5_TPVENDA|C5_MENNOTA|C5_TPVENDA|C5_TPECOM|C5_SERWEB|C5_GRPWEB|C5_CNLWEB|C5_EMPFAT|C5_FILFAT|C5_MAILWF|C5_DATA1"+;
+//					"|C6_PRODUTO|C6_QTDVEN|C6_PRCVEN|C6_DESCRI|"
+
+conout('Chegou >> rest >> T_MATA410') 
+// define o tipo de retorno do método
+::SetContentType("application/json")
+ 
+// verifica se recebeu parametro pela URL
+// exemplo: http://localhost:8080/T_MATA410/1
+
+DEFAULT ::startIndex := 1, ::count := 5
+::SetResponse('[')
+If Len(::aURLParms) > 0
+	SC5->(DbSetOrder(1))
+	conout('id>>'+::aURLParms[1]) 
+	::SetResponse('{"pedido":"'+::aURLParms[1]+'"')
+	If SC5->(DbSeek(xFilial('SC5')+::aURLParms[1]))
+		::SetResponse(',"existe":"true"}')
+ 	Else
+		::SetResponse(',"existe":"false"}')
+	EndIf
+Else
+::SetResponse('{"pedido":[{')
+	SX3->(DbSetOrder(1))
+	If SX3->(DbSeek('SC5'))
+	i:=1
+	::SetResponse('"header":{')
+	
+		While SX3->(!EoF()) .And. SX3->X3_ARQUIVO=='SC5'
+			If i==1
+				::SetResponse('"DOC_PESSOA":"Documento CNPJ/CPF e Outros."')
+				i++
+			EndIf
+			If  alltrim(SX3->X3_CAMPO) $ cCmpObg
+				::SetResponse(if(i==1,'',','))
+				::SetResponse('"'+SX3->X3_CAMPO+'":"'+ALLTRIM(SX3->X3_TITULO)+'"')
+				i++
+			EndIF		
+		SX3->(DbSkip())
+		EndDo
+	::SetResponse('}')
+	cRet:=","	
+	EndIf
+	If SX3->(DbSeek('SC6'))
+	::SetResponse(cRet+'"content":[{')
+		i:=1
+		While SX3->(!EoF()) .And. SX3->X3_ARQUIVO=='SC6'  
+			If alltrim(SX3->X3_CAMPO) $ cCmpObg
+				::SetResponse(if(i==1,'',','))
+				::SetResponse('"'+SX3->X3_CAMPO+'":"'+ALLTRIM(SX3->X3_TITULO)+'"')
+				i++
+			EndIF		
+		SX3->(DbSkip())
+		EndDo
+	::SetResponse('}]')	
+	EndIf
+::SetResponse('}]}')
+EndIf
+::SetResponse(']')
+Return .T.
+ 
+// O metodo POST pode receber parametros por querystring, por exemplo:
+// WSMETHOD POST WSRECEIVE startIndex, count WSSERVICE T_MATA410
+WSMETHOD POST WSSERVICE T_MATA410
+Local lPost := .T.
+Local cJson	:= ""
+Local aErros	:={} 
+Local aRet		:={} 
+Local oJson	
+Local oHeader	
+Local oContent	
+Local oJsonParser
+Local jsonfields := {}
+Local nRetParser := 0
+Local lRetParser := .F.
+Local aHeadJson	:= {}
+Local aContJson	:= {}
+Local cRet := ""
+Local aCodEmp := {}
+Local _lAuto := .F.
+
+oJsonParser := tJsonParser():New()
+
+conout('[USER][INFO] ['+DToC(Date())+' - '+Time()+'] REST_POST INICIO')
+If  Len(::aURLParms) > 0 
+	aCodEmp:=GetCodEmp(::aURLParms[1])
+	If Len(aCodEmp)>0
+conout('[USER][INFO] ['+DToC(Date())+' - '+Time()+'] LIMPA AMBIENTE')
+		RpcClearEnv()
+conout('[USER][INFO] ['+DToC(Date())+' - '+Time()+'] MONTA AMBIENTE')
+		RpcSetType(3)
+		RpcSetEnv(aCodEmp[1],aCodEmp[2])
+	// Exemplo de retorno de erro
+	   // recupera o body da requisição
+		cJson := ::GetContent()
+		fwjsondeseialize(cJson,@oJson)
+		lRetParser := oJsonParser:Json_Parser(cJson,Len(cJson),@jsonfields,@nRetParser)
+	//ajson[1][1][2][1][2][1][2][2][2] --Array aHeader
+	//ajson[1][1][2][1][2][1][2][3][2][1][2] -- Array Content
+				
+		aHeadJson := jsonfields[1][2][2][2][2][2]
+		aContJson := jsonfields[1][2][2][2][3][2][1][2]
+		If Len(aHeadJson) > 0 .And. lRetParser .And. Len(aContJson)>0
+			conout('[USER][INFO] ['+DToC(Date())+' - '+Time()+'] REST_POST JSON RECEBIDO OK')
+			aRet := InserePed(oJson,aHeadJson,aContJson)
+			::SetResponse('{"pedido":')
+			::SetResponse('{"header":{')
+           If Len(aRet[2]) > 0 .AND. !aRet[1]
+				aErros:= aRet[2]
+				If Len(aRet[4])>0 .And. Len(aRet[5])>0
+	              ::SetResponse('"DOC_PESSOA":"'+'00000000'+'"')
+					For z:=1 To Len(aRet[4])
+	              	::SetResponse(',"'+aRet[4][z][1]+'":"'+ if(Valtype(aRet[4][z][2])=="C",aRet[4][z][2],;
+																	  if(Valtype(aRet[4][z][2])=="D",DToS(aRet[4][z][2]),;
+																	  if(Valtype(aRet[4][z][2])=="N",Alltrim(str(aRet[4][z][2])),aRet[4][z][2]))) + '"')  					
+		         	Next
+			     	::SetResponse('}')
+		         	::SetResponse(',"content":[')
+		         	For x:=1 To Len(aRet[5])
+			         	::SetResponse(if(x==1,'',','))
+			       	::SetResponse('{')
+		          		For y:=1 To Len(aRet[5][x])
+		          			::SetResponse(if(y==1,'',','))
+	              		::SetResponse('"'+aRet[5][x][y][1]+'":"'+if(Valtype(aRet[5][x][y][2])=="C",aRet[5][x][y][2],;
+																	  if(Valtype(aRet[5][x][y][2])=="D",DToS(aRet[5][x][y][2]),;
+																	  if(Valtype(aRet[5][x][y][2])=="N",Alltrim(str(aRet[5][x][y][2])),aRet[5][x][y][2]))) + '"')  					
+		         		Next 
+		         		::SetResponse('}')
+	    			Next
+	    		Else
+	    		  	::SetResponse('}')
+		         	::SetResponse(',"content":[')
+		       EndIF
+    			::SetResponse(']')
+				::SetResponse(',"errors":[')
+				For i:=1 To Len(aErros)
+					If ALLTRIM(aErros[i][1])=="ExecAuto"
+						_lAuto := .T.
+						cRet += if(i==1,'{"field":"'+aErros[i][1]+'","description":"','')
+						cRet += '|' + StrZero(i,2) + ' | ' + StrTran(aErros[i][2],CRLF,"") 
+					Else
+						cRet += if(i==1,'',',')
+						cRet += '{"field":"'+aErros[i][1]+'","description":"'+aErros[i][2]+'"}'
+					EndIf
+				Next
+				cRet += if(_lAuto,'"}','')
+				::SetResponse(cRet)
+				::SetResponse(']')
+				::SetResponse('}')
+              ::SetResponse('}')
+				HTTPSetStatus(400)
+				//SetRestFault(4,'[' + cRet + ']')
+				//lPost := .F.
+			Else
+				::SetResponse('"DOC_PESSOA":"11520450000121"')
+				For z:=1 To Len(aRet[4])
+	             	::SetResponse(',"'+aRet[4][z][1]+'":"'+if(Valtype(aRet[4][z][2])=="C",aRet[4][z][2],;
+																  if(Valtype(aRet[4][z][2])=="D",DToS(aRet[4][z][2]),;
+																  if(Valtype(aRet[4][z][2])=="N",Alltrim(str(aRet[4][z][2])),aRet[4][z][2]))) + '"')  					
+		       Next
+			   	::SetResponse('}')
+		       ::SetResponse(',"content":[')
+		       For x:=1 To Len(aRet[5])
+		       	::SetResponse(if(x==1,'',','))
+		       	::SetResponse('{')
+		       	For y:=1 To Len(aRet[5][x])
+		       		::SetResponse(if(y==1,'',','))
+	              	::SetResponse('"'+aRet[5][x][y][1]+'":"'+if(Valtype(aRet[5][x][y][2])=="C",aRet[5][x][y][2],;
+																	  if(Valtype(aRet[5][x][y][2])=="D",DToS(aRet[5][x][y][2]),;
+																	  if(Valtype(aRet[5][x][y][2])=="N",Alltrim(str(aRet[5][x][y][2])),aRet[5][x][y][2]))) + '"')  					
+		       	Next 
+		       	::SetResponse('}')	
+	    		Next 
+	    		::SetResponse(']')
+				::SetResponse(',"errors":null')
+			EndIf
+		
+		Else
+		   SetRestFault(400, "body parameter error")
+	   		lPost := .F.
+	
+			ConOut("##### [JSON][ERR] " + "Parser 1 com erro" + " MSG len: " + AllTrim(Str(lenStrJson)) + " bytes lidos: " + AllTrim(Str(nRetParser)))
+		   	ConOut("Erro a partir: " + SubStr(strJson, (nRetParser+1)))
+		EndIf
+	Else
+		SetRestFault(400, "parametro invalido")
+		lPost := .F.
+	EndIf
+Else
+	SetRestFault(400, "parametro obrigatorio")
+	lPost := .F.
+EndIf
+conout('[USER][INFO] ['+DToC(Date())+' - '+Time()+'] REST_POST FIM')
+
+Return lPost
+ 
+// O metodo PUT pode receber parametros por querystring, por exemplo:
+// WSMETHOD PUT WSRECEIVE startIndex, count WSSERVICE T_MATA410
+WSMETHOD PUT WSSERVICE T_MATA410
+Local lPut 	:= .T.
+Local cJson	:= ""
+Local aErros	:={} 
+Local aRet		:={} 
+Local oJson	
+Local oHeader	
+Local oContent	
+Local oJsonParser
+Local jsonfields := {}
+Local nRetParser := 0
+Local lRetParser := .F.
+Local aHeadJson	:= {}
+Local aContJson	:= {}
+Local cRet := ""
+Local _lAuto := .F.
+oJsonParser := tJsonParser():New()
+
+conout('[USER][INFO] ['+DToC(Date())+' - '+Time()+'] REST_POST INICIO')
+If  Len(::aURLParms) > 0 
+	aCodEmp:=GetCodEmp(::aURLParms[1])
+	If Len(aCodEmp)>0
+		RpcClearEnv()
+		RpcSetType(3)
+		RpcSetEnv(aCodEmp[1],aCodEmp[2])
+	// Exemplo de retorno de erro
+	   // recupera o body da requisição
+		cJson := ::GetContent()
+		fwjsondeseialize(cJson,@oJson)
+		lRetParser := oJsonParser:Json_Parser(cJson,Len(cJson),@jsonfields,@nRetParser)
+	//ajson[1][1][2][1][2][1][2][2][2] --Array aHeader
+	//ajson[1][1][2][1][2][1][2][3][2][1][2] -- Array Content
+				
+		//aHeadJson := jsonfields[1][1][2][1][2][1][2][2][2]
+		//aContJson := jsonfields[1][1][2][1][2][1][2][3][2][1][2]
+		aHeadJson := jsonfields[1][2][2][2][2][2]
+		aContJson := jsonfields[1][2][2][2][3][2][1][2]
+		
+		If Len(oJson) > 0 .And. lRetParser
+			conout('[USER][INFO] ['+DToC(Date())+' - '+Time()+'] REST_POST JSON RECEBIDO OK')
+			aRet := InserePed(oJson,aHeadJson,aContJson)
+			If Len(aRet[2]) > 0 .AND. !aRet[1]
+				aErros:= aRet[2]
+				
+				
+				
+				For i:=1 To Len(aErros)
+					cRet += if(i==1,'',',')
+					cRet += '{"'+aErros[i][1]+'","'+aErros[i][2]+'"}'
+				Next
+				SetRestFault(422,'[' + cRet + ']')
+				lPut := .F.
+			Else
+				::SetResponse('{"C5_NUM":"' + Alltrim(SM0->M0_CODIGO) + Alltrim(SM0->M0_CODFIL) + aRet[3] + '"}') 
+			EndIf
+		
+		Else
+		   SetRestFault(400, "body parameter error")
+	   		lPut := .F.
+	
+			ConOut("##### [JSON][ERR] " + "Parser 1 com erro" + " MSG len: " + AllTrim(Str(lenStrJson)) + " bytes lidos: " + AllTrim(Str(nRetParser)))
+		   	ConOut("Erro a partir: " + SubStr(strJson, (nRetParser+1)))
+		EndIf
+	Else
+		SetRestFault(400, "parametro invalido")
+		lPut := .F.
+	EndIf
+Else
+	SetRestFault(400, "parametro obrigatorio")
+	lPost := .F.
+EndIf
+conout('[USER][INFO] ['+DToC(Date())+' - '+Time()+'] REST_PUT FIM')
+
+Return lPut
+ 
+// O metodo DELETE pode receber parametros por querystring, por exemplo:
+// WSMETHOD DELETE WSRECEIVE startIndex, count WSSERVICE T_MATA410
+WSMETHOD DELETE WSSERVICE T_MATA410
+Local lDelete := .T.
+ 
+// Exemplo de retorno de erro
+If Len(::aURLParms) == 0
+   SetRestFault(400, "id parameter is mandatory")
+   lDelete := .F.
+ 
+Else
+   // insira aqui o código para operação exclusão
+   // exemplo de retorno de um objeto JSON
+   
+	::SetResponse('{"id":' + ::aURLParms[1] + ', "name":"T_MATA410"}')
+EndIf
+Return lDelete
+
+/*\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\\/\/\/\/*/
+
+Static Function InserePed(oJson,aHeadJson,aContJson)
+Local lRet 	:= .T.
+Local z:=x:=0
+Local oHeader
+Local oContent
+Local aErros 	:= {}
+Local aCabec	:= {}
+Local aItens	:= {}
+Local aCli		:= {}
+Local cDoc		:= ''
+Local lVldCmp := .T. //Validação de campo customizado
+Local nTotalPed := 0
+
+SX3->(DbSetOrder(1))
+SX5->(DbSetOrder(1))
+SE4->(DbSetOrder(1))
+ZZ3->(DbSetOrder(1))
+SB1->(DbSetOrder(1))
+
+//SX3->(DbGoTop())
+conout('[USER][INFO] ['+DToC(Date())+' - '+Time()+'] REST INICIO PROCESSAMENTO DE PEDIDO')
+//For z:=1 To Len(oJson)
+//	For x:=1 To Len(oJson[z]:PEDIDO)
+		aEval(aHeadObg,{|x| cCampo:=x, if(aScan(aHeadJson,{|y| upper(alltrim(y[1]))==Alltrim(cCampo)})==0,eVal({|| lNotObrg:=.T.,aAdd(aErros,{cCampo,"Campo Obrigatorio"})}),'')})
+		aEval(aContObg,{|x| cCampo:=x, if(aScan(aContJson,{|y| upper(alltrim(y[1]))==Alltrim(cCampo)})==0,eVal({|| lNotObrg:=.T.,aAdd(aErros,{cCampo,"Campo Obrigatorio"})}),'')})
+		If Len(aErros)>0
+			lRet := .F.
+		Else
+			cDoc := GetSxeNum("SC5","C5_NUM")		
+			RollBAckSx8()		
+			aCabec := {}		
+			aItens := {}		
+			
+			aadd(aCabec,{"C5_NUM"   ,cDoc,Nil})
+			aadd(aCabec,{"C5_TIPO"  ,"N",Nil})
+			
+			oHeader := oJson:PEDIDO:HEADER
+			
+			SX3->(DbSeek('SC5'))
+			While SX3->(!EOF()) .And. SX3->X3_ARQUIVO=="SC5"
+				If aScan(aHeadJson,{|y| upper(alltrim(y[1]))==Alltrim(SX3->X3_CAMPO)})>0
+					If eVAL(&('{|| oHeader:'+SX3->X3_CAMPO+' }'))== Nil .Or. Empty(eVAL(&('{|| oHeader:'+SX3->X3_CAMPO+' }')))
+				   		aAdd(aErros,{SX3->X3_CAMPO,"Campo obrigatorio"})
+				   	ElseIf Alltrim(SX3->X3_CAMPO)=='C5_CONDPAG'
+				   		If(SE4->(DbSeek(xFilial("SE4") + eVAL(&('{|| oHeader:'+SX3->X3_CAMPO+' }')))),'',aAdd(aErros,{SX3->X3_CAMPO,"Conteudo invalido"}))
+				   	ElseIf Alltrim(SX3->X3_CAMPO)=='C5_TPVENDA'
+				   		If(ZZ3->(DbSeek(xFilial("ZZ3") + eVAL(&('{|| oHeader:'+SX3->X3_CAMPO+' }')))),'',aAdd(aErros,{SX3->X3_CAMPO,"Conteudo invalido"}))
+				   	ElseIf Alltrim(SX3->X3_CAMPO)=='C5_SERWEB'
+				   		If(SX5->(DbSeek(xFilial("SX5") + '01' + eVAL(&('{|| oHeader:'+SX3->X3_CAMPO+' }')))),'',aAdd(aErros,{SX3->X3_CAMPO,"Conteudo invalido"}))
+				   	EndIf
+				EndIf
+			   
+			   If Len(aErros)==0
+			   		If aScan(aHeadJson,{|x| UPPER(Alltrim(x[1])) == Alltrim(SX3->X3_CAMPO)})>0 //.And. aScan(aCabec,{|x| Alltrim(x[1]) == Alltrim(SX3->X3_CAMPO)})==0  
+			   	  		If !empty(eVAL(&('{|| oHeader:'+SX3->X3_CAMPO+' }')))
+			   	  			aadd(aCabec,{(SX3->X3_CAMPO)   ,If(SX3->X3_TIPO=="C",SubStr(Alltrim(eVAL(&('{|| oHeader:'+SX3->X3_CAMPO+' }'))),1,SX3->X3_TAMANHO),;
+					   										  If(SX3->X3_TIPO=="N",Val(eVAL(&('{|| oHeader:'+SX3->X3_CAMPO+' }'))),;
+					   										  If(SX3->X3_TIPO=="D",SToD(eVAL(&('{|| oHeader:'+SX3->X3_CAMPO+' }'))),;
+					   										  eVAL(&('{|| oHeader:'+SX3->X3_CAMPO+' }'))))),Nil})
+				   		EndIf
+				   	EndIf
+				EndIf 
+			SX3->(DbSkip())
+			EndDo
+			IF aScan(aCabec,{|x| Alltrim(x[1])=="C5_CLIENTE"})==0
+				aCli := GetCliente(oHeader:DOC_PESSOA)
+				If aCli[1] 
+					aadd(aCabec,{"C5_CLIENTE"   ,aCli[2],Nil})
+				   	aadd(aCabec,{"C5_LOJACLI"   ,aCli[3],Nil})
+				   	aadd(aCabec,{"C5_LOJAENT"	,aCli[3],Nil})		
+				Else
+					aAdd(aErros,{"DOC_PESSOA","Conteudo invalido"})
+				   	lRet := .F.
+				EndIf
+			EndIf
+			
+			For y:=1 To Len(oJson:PEDIDO:CONTENT)
+				oContent:= oJson:PEDIDO:CONTENT[y]
+				SX3->(DbGoTop())
+				SX3->(DbSeek('SC6'))
+				aLinha:={}
+				While SX3->(!EOF()) .And. SX3->X3_ARQUIVO=="SC6"
+					If aScan(aContJson,{|y| upper(alltrim(y[1]))==Alltrim(SX3->X3_CAMPO)})>0
+					conout('campo>> '+SX3->X3_CAMPO)
+				    	If eVAL(&('{|| oContent:'+SX3->X3_CAMPO+' }'))== Nil .Or. Empty(eVAL(&('{|| oContent:'+SX3->X3_CAMPO+' }')))
+				    		aAdd(aErros,{SX3->X3_CAMPO,"Campo obrigatorio"})
+				    		lRet := .F.
+				    	ElseIf Alltrim(SX3->X3_CAMPO)=='C6_PRODUTO'
+				    		If(SB1->(DbSeek(xFilial("SB1") + eVAL(&('{|| oContent:'+SX3->X3_CAMPO+' }')))),'',aAdd(aErros,{SX3->X3_CAMPO,"Conteudo invalido"}))
+				    	ElseIf Alltrim(SX3->X3_CAMPO)=='C6_QTDVEN' .Or. Alltrim(SX3->X3_CAMPO)=='C6_PRCVEN' 
+				    		If(VAL(eVAL(&('{|| oContent:'+SX3->X3_CAMPO+' }')))>0,'',aAdd(aErros,{SX3->X3_CAMPO,"Conteudo invalido"}))
+				    	EndIf
+				    EndIf 
+				    If Len(aErros)==0
+					   If aScan(aContJson,{|x| Alltrim(x[1]) == Alltrim(SX3->X3_CAMPO)})>0 
+				   	  		If !empty(eVAL(&('{|| oContent:'+SX3->X3_CAMPO+' }')))
+					   			aadd(aLinha,{Alltrim(SX3->X3_CAMPO)   ,If(SX3->X3_TIPO=="C",SubStr(Alltrim(eVAL(&('{|| oContent:'+SX3->X3_CAMPO+' }'))),1,SX3->X3_TAMANHO),;
+					   										  If(SX3->X3_TIPO=="N",Val(eVAL(&('{|| oContent:'+SX3->X3_CAMPO+' }'))),;
+					   										  If(SX3->X3_TIPO=="D",SToD(eVAL(&('{|| oContent:'+SX3->X3_CAMPO+' }'))),;
+					   										  eVAL(&('{|| oContent:'+SX3->X3_CAMPO+' }'))))),Nil})
+					   		EndIf
+					   EndIf
+					   
+					EndIf
+				SX3->(DbSkip())
+				EndDo	
+				//aadd(aLinha,{"C6_PRUNIT",Val(oContent:C6_PRCVEN),Nil})			
+				nTotItem := Round(Val(oContent:C6_PRCVEN)*Val(oContent:C6_QTDVEN),TamSX3("C6_VALOR")[2])
+				aadd(aLinha,{"C6_VALOR",nTotItem,Nil})
+				aadd(aLinha,{"C6_ITEM",StrZero(y,2),Nil})
+				aadd(aLinha,{"C6_TES",Posicione("ZZE",1,xFilial("ZZE")+Posicione("ZZD",1,xFilial("ZZD")+oHeader:C5_TPVENDA+oHeader:C5_SERWEB,"ZZD_NUM")+oContent:C6_PRODUTO,"ZZE_TES"),Nil})	
+				aadd(aLinha,{"C6_XCONTA",Posicione("ZZE",1,xFilial("ZZE")+Posicione("ZZD",1,xFilial("ZZD")+oHeader:C5_TPVENDA+oHeader:C5_SERWEB,"ZZD_NUM")+oContent:C6_PRODUTO,"ZZE_CONTA"),Nil})
+				aadd(aLinha,{"C6_XCCUSTO",Posicione("ZZE",1,xFilial("ZZE")+Posicione("ZZD",1,xFilial("ZZD")+oHeader:C5_TPVENDA+oHeader:C5_SERWEB,"ZZD_NUM")+oContent:C6_PRODUTO,"ZZE_CCUSTO"),Nil})
+				aadd(aLinha,{"C6_XITEMCC",Posicione("ZZE",1,xFilial("ZZE")+Posicione("ZZD",1,xFilial("ZZD")+oHeader:C5_TPVENDA+oHeader:C5_SERWEB,"ZZD_NUM")+oContent:C6_PRODUTO,"ZZE_ITEMC"),Nil})		
+				nTotalPed += nTotItem 
+				aadd(aItens,aLinha)	
+			Next
+			If Len(aErros)==0
+			
+				If Alltrim(SE4->E4_TIPO)=="9"
+					If(aScan(aCabec,{|x| upper(alltrim(x[1]))=='C5_PARC1'})==0, aadd(aCabec,{"C5_PARC1"	,nTotalPed,Nil}),)
+					If aScan(aCabec,{|x| upper(alltrim(x[1]))=='C5_DATA1'})==0
+						If aScan(aHeadJson,{|y| upper(alltrim(y[1]))=='C5_DATA1'})>0 
+					   		If date() <= SToD(oHeader:C5_DATA1)
+					   			aadd(aCabec,{"C5_DATA1"	,SToD(oHeader:C5_DATA1),Nil})
+					   		Else
+					   			aAdd(aErros,{SX3->X3_CAMPO,"Conteudo invalido"})
+					   		EndIf
+					   	Else
+					   		aadd(aCabec,{"C5_DATA1"	,Date(),Nil})
+					   	EndIf
+					EndIf
+				EndIf
+				aErros := GerPedVen(cDoc,aCabec,aItens,3)		
+				If Len(aErros)>0
+					conout('---------PEDIDO DE VENDA COM ERRO-----------')
+					lRet := .F.
+				EndIf
+			Else
+				lRet := .F.
+			EndIf
+		EndIf
+//	Next
+//Next
+Return {lRet,aErros,cDoc,aCabec,aItens}
+
+Static Function GerPedVen(cDoc,aCabec,aItens,nTipo)
+Local nX     	:= 0
+Local nCount 	:= 0   
+Local cLogFile:= "\T_MATA410_" + DToS(date()) + StrTran(Time(),":",".") +".LOG" 
+Local cLogFolder1 := "\log_ws"
+Local cLogFolder2 := "\rest_pedido"
+Local aLog 	:= {}
+Local aVetor 	:= {}
+Local nHandle
+Local lRet 	:= .F.  
+Local aErros	:={}
+ 
+// variável de controle interno da rotina automatica que informa se houve erro durante o processamento
+PRIVATE lMsErroAuto := .F.
+// variável que define que o help deve ser gravado no arquivo de log e que as informações estão vindo à partir da rotina automática.
+Private lMsHelpAuto	:= .T.    
+// força a gravação das informações de erro em array para manipulação da gravação ao invés de gravar direto no arquivo temporário 
+Private lAutoErrNoFile := .T. 
+conout('Inicio geracao do pedido: '+cDoc)
+lMsErroAuto := .F.    	
+lRet := .F.	
+	
+conout('[USER][INFO] ['+DToC(Date())+' - '+Time()+'] REST INICIO PROCESSAMENTO EXECAUTO MATA410')
+
+MATA410(aCabec,aItens,3)	
+
+If lMsErroAuto
+	AutoGrLog(SM0->M0_CODIGO+"/"+SM0->M0_CODFIL+ " - Pedido: "+Alltrim(cDoc))
+	AutoGrLog(Replicate("-", 20))
+conout('[USER][ERRO] [' + DToC(Date())+ ' - ' + Time() + '] REST ERRO PROCESSAMENTO EXECAUTO MATA410')
+	//Verifica se ja existe pasta para geracao de arquivo de log.
+	If !(ExistDir(cLogFolder1))
+		If(MakeDir(cLogFolder1)==0,conout('pasta criada com sucesso'),conout('nao foi possivel criar a pasta'+cValToChar(FError())))
+	EndIf		
+	If !(ExistDir(cLogFolder1+cLogFolder2))
+		If(MakeDir(cLogFolder1+cLogFolder2)==0,conout('pasta criada com sucesso'),conout('nao foi possivel criar a pasta'+cValToChar(FError())))
+	EndIf
+	cLogFile := cLogFolder1 + cLogFolder2 + cLogFile		
+	
+	//cLogFile := cLogFolder + "\T_MATA410_" + DToS(date()) + StrTran(Time(),":",".") + Alltrim(cDoc)+".LOG"		
+	//função que retorna as informações de erro ocorridos durante o processo da rotina automática		
+	aLog := GetAutoGRLog()	                                 				
+	//efetua o tratamento para validar se o arquivo de log já existe		
+	If !File(cLogFile)		
+		If (nHandle := MSFCreate(cLogFile,0)) <> -1
+			lRet := .T.			
+		EndIf		
+	Else
+		If (nHandle := FOpen(cLogFile,2)) <> -1
+			FSeek(nHandle,0,2)				
+			lRet := .T.			
+		EndIf		
+	EndIf		
+	If	lRet
+		conout('[USER][ERRO] ['+DToC(Date())+' - '+Time()+'] REST ERRO PROCESSAMENTO EXECAUTO MATA410 PEDIDO: '+cDoc+' - consulte arquivo de log.')                                                                                     			
+		//grava as informações de log no arquivo especificado			
+		For nX := 1 To Len(aLog)				
+			FWrite(nHandle,aLog[nX]+CRLF)
+			aAdd(aErros,{"ExecAuto",aLog[nX]})
+			conout(StrZero(nX,2)+' | '+aLog[nX])
+		Next nX
+		FWrite(nHandle,Replicate("-", 20)+CRLF)
+		aeVAL(aCabec,{|x| conout(x[1]+' >> '+ If(valtype(x[2])=="C",x[2],;
+					   					  If(valtype(x[2])=="N",alltrim(str(x[2])),;
+					   					  If(valtype(x[2])=="D",dToS(x[2]),;
+					   										  x[2]))))})
+		FWrite(nHandle,Replicate("-", 20)+CRLF)
+		conout('len(aItens)'+str(len(aItens)))
+		conout('len(aItens[1])'+str(len(aItens[1])))
+		aeVAL(aItens,{|x| aeval(x,{|y| conout(y[1]+' >> '+ If(valtype(y[2])=="C",y[2],;
+					   					  If(valtype(y[2])=="N",alltrim(str(y[2])),;
+					   					  If(valtype(y[2])=="D",dToS(y[2]),;
+					   										  y[2]))))})})
+		FWrite(nHandle,Replicate("-", 20))							
+		FClose(nHandle)
+	Else
+		conout('[USER][ERRO] ['+DToC(Date())+' - '+Time()+'] REST ERRO PROCESSAMENTO EXECAUTO MATA410 PEDIDO: '+cDoc)
+		For nX := 1 To Len(aLog)				
+			aAdd(aErros,{"ExecAuto",aLog[nX]})
+			conout(StrZero(nX,2)+' | '+aLog[nX])			
+		Next nX		
+	EndIf	
+Else
+	conout('[USER][INFO] ['+DToC(Date())+' - '+Time()+'] REST PROCESSAMENTO REALIZADO COM SUCESSO PEDIDO: '+cDoc)
+EndIf
+
+Return aErros
+
+Static Function GetCliente(cCNPJ)
+Local cQry:=cCod:=cLoja:=""
+Local _cAlias := GetNextAlias()
+Local lRet := .T.
+cQry += " SELECT "
+cQry += " A1_COD,A1_LOJA "
+cQry += " FROM " + RetSqlName("SA1") + " SA1 "
+cQry += " WHERE "
+cQry += " SA1.D_E_L_E_T_='' "
+cQry += " AND A1_CGC='" + ALLTRIM(cCNPJ)+"' "
+
+cQry := ChangeQuery(cQry)
+DbUseArea(.T., "TOPCONN",TCGenQry(,,cQry),_cAlias,.F.,.F.)
+(_cAlias)->(DbGoTop())
+
+If (_cAlias)->(EOF())
+	lRet := .F.
+Else
+	cCod	:= (_cAlias)->A1_COD
+	cLoja	:= (_cAlias)->A1_LOJA
+EndIf
+(_cAlias)->(DbCloseArea())
+Return {lRet,cCod,cLoja}
+
+
+Static Function GetCodEmp(cCNPJ)
+Local aRet := Array(2)
+OpenSM0()
+SM0->(DbSetOrder(1))
+SM0->(DbGoTop())
+conout('--PROCURA EMP >>>'+cCNPJ)
+While SM0->(!EoF()) 
+conout('--PROCURA EMP-->> '+SM0->M0_CGC)
+	if SM0->M0_CGC==cCNPJ .Or. Empty(cCnpj)
+	conout('------------achou------')
+		aRet[1] := SM0->M0_CODIGO
+		aRet[2] := SM0->M0_CODFIL
+		Exit
+ 	EndIf
+SM0->(DbSkip())
+EndDo
+Return aRet
