@@ -16,7 +16,8 @@ cCSS:= "QTableView{ alternate-background-color: #D3D3D3 ; background: white; sel
 //http://www.color-hex.com/color/616161       
 // configura pintura do Header da TGrid
 cCSS+= "QHeaderView::section { background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #b0b0b0, stop: 0.5 #a0a0a0, stop: 0.6 #909090,  stop:1 #707070); color: white; padding-left: 4px; border: 1px solid #6c6c6c; height: 25px;}"
-    
+
+cCSS+="QTableView::item:focus{ selection-background-color: red;}"    
 
 If SX2->(DbSeek(_cAlias))
 	cQuery := " SELECT * FROM " + RetSqlName(_cAlias) + " " + _cAlias
@@ -64,7 +65,7 @@ If SX2->(DbSeek(_cAlias))
 	oBrw:SetDescription(SX2->X2_NOME)
 	
 	aEval(aColumn,{|x| oBrw:AddColumn(x)})
-	
+	oBrw:SetTypeMove(1)
 	oBrw:Activate()
 	
 	oBrowse := oBrw:Browse()
@@ -73,7 +74,7 @@ If SX2->(DbSeek(_cAlias))
    	oBrowse:SetColumnColor(1,CLR_YELLOW,0)
    	oBrowse:SetColumnColor(2,CLR_BLUE,CLR_WHITE)
 	oBrowse:SetCss(cCss)
-	oBrowse:SetSelectionMode(1)
+	//oBrowse:SetSelectionMode(1)
 	
 	aButtons := {{.F.,Nil},{.F.,Nil},{.F.,Nil},{.T.,Nil},{.T.,Nil},{.T.,Nil},{.T.,"Salvar"},{.T.,"Cancelar"},{.T.,Nil},{.T.,Nil},{.T.,Nil},{.T.,Nil},{.T.,Nil},{.T.,Nil}}
 	aBut := {}
