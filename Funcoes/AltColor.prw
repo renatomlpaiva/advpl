@@ -12,10 +12,10 @@ Local aItens := {}
 Local oBrowse 
 
 // configura pintura da TGridLocal
-cCSS:= "QTableView{ alternate-background-color: #D3D3D3 ; background: white; selection-background-color: #4682B4 }"
-       
+cCSS:= "QTableView{ alternate-background-color: #D3D3D3 ; background: white; selection-background-color: #4682B4; }"
+//http://www.color-hex.com/color/616161       
 // configura pintura do Header da TGrid
-cCSS+= "QHeaderView::section { background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #676767, stop: 0.5 #6f6f6f, stop: 0.6 #898989,  stop:1 #9c9c9c); color: white; padding-left: 4px; border: 1px solid #6c6c6c; height: 20px;}"
+cCSS+= "QHeaderView::section { background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #b0b0b0, stop: 0.5 #a0a0a0, stop: 0.6 #909090,  stop:1 #707070); color: white; padding-left: 4px; border: 1px solid #6c6c6c; height: 25px;}"
     
 
 If SX2->(DbSeek(_cAlias))
