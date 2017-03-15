@@ -11,7 +11,12 @@ Local oBrw
 Local aItens := {}
 Local oBrowse 
 
-
+// configura pintura da TGridLocal
+cCSS:= "QTableView{ alternate-background-color: #D3D3D3 ; background: white; selection-background-color: #4682B4 }"
+       
+// configura pintura do Header da TGrid
+cCSS+= "QHeaderView::section { background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #676767, stop: 0.5 #6f6f6f, stop: 0.6 #898989,  stop:1 #9c9c9c); color: white; padding-left: 4px; border: 1px solid #6c6c6c; height: 20px;}"
+    
 
 If SX2->(DbSeek(_cAlias))
 	cQuery := " SELECT * FROM " + RetSqlName(_cAlias) + " " + _cAlias
@@ -67,6 +72,8 @@ If SX2->(DbSeek(_cAlias))
 	oBrowse:SetColumnColor(0,CLR_YELLOW,0)
    	oBrowse:SetColumnColor(1,CLR_YELLOW,0)
    	oBrowse:SetColumnColor(2,CLR_BLUE,CLR_WHITE)
+	oBrowse:SetCss(cCss)
+	oBrowse:SetSelectionMode(1)
 	
 	aButtons := {{.F.,Nil},{.F.,Nil},{.F.,Nil},{.T.,Nil},{.T.,Nil},{.T.,Nil},{.T.,"Salvar"},{.T.,"Cancelar"},{.T.,Nil},{.T.,Nil},{.T.,Nil},{.T.,Nil},{.T.,Nil},{.T.,Nil}}
 	aBut := {}
