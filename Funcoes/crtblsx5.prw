@@ -1,3 +1,6 @@
+#INCLUDE "Protheus.ch"
+#INCLUDE "rwmake.ch"
+
 User Function CRTBLSX5(cGrp,cDesc)
   CdGrp(cGrp,cDesc)
 Return
