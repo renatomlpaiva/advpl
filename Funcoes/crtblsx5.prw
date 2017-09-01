@@ -118,3 +118,32 @@ RecLock("SX5",.T.)
 	SX5->X5_DESCENG 	:= cDesc
 MsUnLock()
 Return
+
+
+/*-------------------------------------------------------------------------------------|
+|Salva manutencao realizada na rotina CdGrp												   |
+|-------------------------------------------------------------------------------------*/
+
+Static Function GrpSalv(cGrp)
+
+DbSelectArea("SX5")
+DbSetOrder(1)
+
+For i := 1 To Len(aCols)
+	If DbSeek(xFilial("SX5")+cGrp+aCols[i][nPosCod])
+		RecLock("SX5",.F.)
+		Iif(aCols[i][Len(aCols[i])],SX5->(DbDelete()),)
+	ElseIf aCols[i][Len(aCols[i])]
+		Loop
+	Else
+		RecLock("SX5",.T.)
+	EndIf
+	SX5->X5_FILIAL	:= xFilial("SX5")
+	SX5->X5_TABELA	:= cGrp
+	SX5->X5_CHAVE	:= aCols[i][nPosCod]
+	SX5->X5_DESCRI	:= aCols[i][nPosDes1] 
+	SX5->X5_DESCSPA := aCols[i][nPosDes2]
+	SX5->X5_DESCENG := aCols[i][nPosDes3]
+Next
+SX5->(MsUnLockAll())
+Return .T.
